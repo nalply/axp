@@ -84,11 +84,13 @@ macro_rules! morphing_lexer {
 
     /// The [logos::Logos::Source] of all lexer modes, usually &str or &[u8].
     /// All lexer modes must have the same source.
+    #[allow(dead_code)]
     pub type LexerSource<'s> = <mode::$init<'s> as logos::Logos<'s>>::Source;
 
     impl<'source> MorphingLexer<'source> {
       /// Create a new MorphingLexer instance starting with lexer mode defined
       /// with &#64;initial_mode: in the macro `morphing_lexer! { ... }`.
+      #[allow(dead_code)]
       pub fn new(source: &'source LexerSource<'source>) -> Self {
         use logos::Logos; // enable Logos::lexer()
         MorphingLexer {
@@ -97,7 +99,16 @@ macro_rules! morphing_lexer {
       }
 
       /// The current lexer mode.
+      #[allow(dead_code)]
       pub fn mode(&'source self) -> &'source LexerMode { &self.lexer_mode }
+
+      // did not work out, problem with lifetime and syntax...
+      // #[allow(dead_code)]
+      // pub fn mode_name(&'source self) -> &'static str {
+      //   match self.lexer_mode {
+      //     $( $name(_) => stringify!($name), )+
+      //   }
+      // }
     }
 
     impl<'source> Iterator for MorphingLexer<'source> {
