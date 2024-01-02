@@ -8,5 +8,6 @@ edition = "2021"
 env_logger = "0.10"
 indexmap = "2"
 log = "0.4"
+axlog = { path="../axlog" }
 logos = "0.13"
 paste = "1"

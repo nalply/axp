@@ -1,12 +1,13 @@
-#![feature(lazy_cell)]
 #![forbid(unsafe_code)]
 
 mod lex;
-mod morphing_lexer;
+mod lstr;
 mod parse;
+pub mod pretty;
 pub mod primitive;
-pub mod shorten_lossy;
 mod value;
 
+pub use lex::{lex, Token};
+pub use lstr::LStr;
 pub use parse::parse;
 pub use value::*;

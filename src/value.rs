@@ -1,7 +1,7 @@
 use core::fmt;
 use indexmap::IndexMap;
 
-use crate::shorten_lossy::shorten_lossy;
+use crate::pretty::PrettyUtf8;
 
 /// Create an atom.
 ///
@@ -94,9 +94,9 @@ impl fmt::Display for Value {
   /// assert_eq!(format!("{map}"), "(key: value list: (a ()))");
   /// ```
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    let width = f.precision();
+    let width = f.precision().unwrap_or(0);
     match self {
-      Value::Atom(Atom(atom)) => f.write_str(&shorten_lossy(atom, width)),
+      Value::Atom(Atom(atom)) => f.write_str(&atom.pretty_short(width)),
       Value::List(List(list)) => f.write_str(&format_list(list, width)),
       Value::Map(Map(map)) => f.write_str(&format_map(map, width)),
     }
@@ -105,25 +105,26 @@ impl fmt::Display for Value {
 
 impl fmt::Display for Atom {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let width = f.precision();
-    f.write_str(&shorten_lossy(&self.0, width)) // see Value::fmt
+    f.write_str(&self.0.pretty_short(f.precision().unwrap_or(0)))
   }
 }
 
 impl fmt::Display for List {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.write_str(&format_list(&self.0, f.precision())) // see Value::fmt
+    f.write_str(&format_list(&self.0, f.precision().unwrap_or(0)))
   }
 }
 
 impl fmt::Display for Map {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.write_str(&format_map(&self.0, f.precision())) // see Value::fmt
+    f.write_str(&format_map(&self.0, f.precision().unwrap_or(0)))
   }
 }
 
 impl Atom {
-  pub fn new(atom: &[u8]) -> Self { Atom(atom.to_vec()) }
+  pub fn new(atom: &[u8]) -> Self {
+    Atom(atom.to_vec())
+  }
 }
 
 impl List {
@@ -134,9 +135,13 @@ impl List {
   /// let list = List::new(&[Value::atom(b"atom"), Value::list(&[])]);
   /// assert_eq!(format!("{list}"), "(atom ())");
   /// ```
-  pub fn new(list: &[Value]) -> Self { List(list.to_vec()) }
+  pub fn new(list: &[Value]) -> Self {
+    List(list.to_vec())
+  }
 
-  pub fn nil() -> Self { Self::new(&[]) }
+  pub fn nil() -> Self {
+    Self::new(&[])
+  }
 
   pub fn first(&self) -> Value {
     if self.0.is_empty() {
@@ -158,42 +163,46 @@ impl Map {
 }
 
 impl Value {
-  fn format(&self, width: Option<usize>) -> String {
+  fn format(&self, width: usize) -> String {
     match self {
       // Code duplication because I could not find out how to pass Display
       // formatting specifiers like `#` (alternate) down to the enum variants
       // like Atom which is also Display. So both the enum Value and the
-      // variants use shorten_lossy, format_list and format_map.
+      // variants use pretty_short, format_list and format_map.
       // Duplication sites are commented like this: // see Value::fmt
-      Value::Atom(Atom(atom)) => shorten_lossy(atom, width),
+      Value::Atom(Atom(atom)) => atom.pretty_short(width),
       Value::List(List(list)) => format_list(list, width),
       Value::Map(Map(map)) => format_map(map, width),
     }
   }
 
-  pub fn atom(atom: &[u8]) -> Value { Value::Atom(Atom::new(atom)) }
+  pub fn atom(atom: &[u8]) -> Value {
+    Value::Atom(Atom::new(atom))
+  }
 
-  pub fn list(list: &[Value]) -> Value { Value::List(List::new(list)) }
+  pub fn list(list: &[Value]) -> Value {
+    Value::List(List::new(list))
+  }
 
   pub fn map<I: IntoIterator<Item = (Atom, Value)>>(iterable: I) -> Value {
     Value::Map(Map::new(iterable))
   }
 }
 
-fn format_list(list: &[Value], width: Option<usize>) -> String {
+fn format_list(list: &[Value], width: usize) -> String {
   let list = list.iter().map(|v| v.format(width)).collect::<Vec<_>>().join(" ");
 
   format!("({list})")
 }
 
-fn format_entry(key: &[u8], value: &Value, width: Option<usize>) -> String {
-  let key = shorten_lossy(key, width);
+fn format_entry(key: &[u8], value: &Value, width: usize) -> String {
+  let key = key.pretty_short(width);
   let value = value.format(width);
 
   format!("{key}: {value}")
 }
 
-fn format_map(map: &IndexMap<Atom, Value>, width: Option<usize>) -> String {
+fn format_map(map: &IndexMap<Atom, Value>, width: usize) -> String {
   let entries = map.iter().map(|(k, v)| format_entry(&k.0, v, width));
   let entries = entries.collect::<Vec<String>>().join(" ");
 

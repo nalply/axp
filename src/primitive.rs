@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 use indexmap::IndexMap;
 
-use crate::shorten_lossy::shorten_lossy;
+use crate::pretty::PrettyUtf8;
 use crate::{atom, list, Atom, List, Value};
 
 pub fn evaluate_value(value: &Value) -> Value {
@@ -37,11 +37,17 @@ pub type Primitive = fn(&List) -> Value;
 #[allow(non_upper_case_globals)]
 pub const prim_eval: Primitive = evaluate_list;
 
-pub fn prim_quote(args: &List) -> Value { Value::List(args.clone()) }
+pub fn prim_quote(args: &List) -> Value {
+  Value::List(args.clone())
+}
 
-pub fn prim_first(args: &List) -> Value { args.first() }
+pub fn prim_first(args: &List) -> Value {
+  args.first()
+}
 
-pub fn prim_tail(args: &List) -> Value { Value::List(args.tail()) }
+pub fn prim_tail(args: &List) -> Value {
+  Value::List(args.tail())
+}
 
 /// Primitive to implement if
 ///
@@ -64,12 +70,14 @@ pub fn prim_if(args: &List) -> Value {
 }
 
 pub fn prim_print(args: &List) -> Value {
-  let bytes = shorten_lossy(&to_bytes(args), None);
+  let bytes = &to_bytes(args).pretty();
   print!("{bytes}");
   list!()
 }
 
-pub fn prim_to_bytes(args: &List) -> Value { Value::Atom(Atom(to_bytes(args))) }
+pub fn prim_to_bytes(args: &List) -> Value {
+  Value::Atom(Atom(to_bytes(args)))
+}
 
 pub fn to_bytes(args: &List) -> Vec<u8> {
   let mut bytes = Vec::<u8>::new();
