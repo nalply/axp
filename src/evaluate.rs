@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 
-use crate::pretty::PrettyUtf8;
 use crate::{Atom, Item, List};
 
-pub fn evaluate_item(item: &Item) -> Item {
+pub fn evaluate(item: &Item) -> Item {
   match item {
-    Item::Atom(atom) => evaluate(atom.clone(), List::nil()),
+    Item::Atom(atom) => evaluate_atom(atom.clone(), List::nil()),
     Item::List(list) => evaluate_list(list),
     Item::Map(_) => item.clone(),
   }
@@ -20,10 +19,10 @@ pub fn operator(op: &Item) -> Atom {
 }
 
 pub fn evaluate_list(list: &List) -> Item {
-  evaluate(operator(&list.first()), list.tail())
+  evaluate_atom(operator(&list.first()), list.tail())
 }
 
-pub fn evaluate(atom: Atom, args: List) -> Item {
+pub fn evaluate_atom(atom: Atom, args: List) -> Item {
   let primitives = PRIMITIVES.get_or_init(|| define_primitives());
   let name: &[u8] = &atom.0;
   primitives.get(name).map_or(Item::nil(), |primitive| primitive(&args))
@@ -49,11 +48,12 @@ pub fn prim_tail(args: &List) -> Item {
 /// Primitive to implement if
 ///
 /// ```
-/// # use axp::{List, atom, list};
-/// # use axp::primitive::*;
-/// let expr_list = List::new(&[atom!(if), atom!(true), atom!(a)]);
-/// assert_eq!(prim_if(&expr_list), atom!(a));
-/// assert_eq!(prim_to_bytes(&expr_list), atom!(b"(if true a)"));
+/// # use axp::parse;
+/// # use axp::evaluate;
+/// let command = parse(b"if true a").unwrap();
+/// assert_eq!(format!("{command}"), "(if true a)");
+/// let result = evaluate(&command);
+/// assert_eq!(format!("{result}"), "a");
 /// ```
 pub fn prim_if(args: &List) -> Item {
   if args.first().is_empty() {
@@ -64,37 +64,12 @@ pub fn prim_if(args: &List) -> Item {
 }
 
 pub fn prim_print(args: &List) -> Item {
-  let bytes = &to_bytes(args).pretty();
-  print!("{bytes}");
+  print!("( ");
+  for item in args.iter() {
+    print!("{item} ");
+  }
+  print!(")");
   Item::nil()
-}
-
-pub fn prim_to_bytes(args: &List) -> Item {
-  Item::Atom(Atom(to_bytes(args)))
-}
-
-pub fn to_bytes(args: &List) -> Vec<u8> {
-  let mut bytes = Vec::<u8>::new();
-  to_bytes_list(&mut bytes, args);
-  bytes
-}
-
-fn to_bytes_list(bytes: &mut Vec<u8>, args: &List) {
-  bytes.push(b'(');
-  for item in args.0.iter() {
-    to_bytes_item(bytes, item);
-    bytes.push(b' ');
-  }
-  bytes.pop();
-  bytes.push(b')');
-}
-
-fn to_bytes_item(bytes: &mut Vec<u8>, item: &Item) {
-  match item {
-    Item::Atom(atom) => bytes.append(&mut atom.0.clone()),
-    Item::List(list) => to_bytes_list(bytes, list),
-    Item::Map(_map) => todo!(),
-  }
 }
 
 type Primitives = std::collections::HashMap<&'static [u8], Primitive>;
@@ -116,7 +91,7 @@ macro_rules! primitives {
 }
 
 pub fn define_primitives() -> Primitives {
-  primitives![if, print, to_bytes, eval, first, tail, quote]
+  primitives![if, print, eval, first, tail, quote]
 }
 
 static PRIMITIVES: std::sync::OnceLock<Primitives> = std::sync::OnceLock::new();

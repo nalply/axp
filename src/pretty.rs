@@ -9,13 +9,13 @@ pub trait PrettyUtf8 {
   ///   `\xhh`, `\Xhhh;`, `\Xhhhh;` or `\Xhhhhh;`
   ///
   /// ```
-  /// # use axp::pretty::PrettyUtf8;
+  /// # use axp::PrettyUtf8;
   /// let s = b"012\x01456789\xff";
   /// assert_eq!("012\\x01456789\\Uff;", s.pretty());
-  /// assert_eq!("012\u{fffd}456789\u{fffd}", s.pretty_short(Some(10)));
-  /// assert_eq!("012⠤9\u{fffd}", s.pretty_short(Some(5)));
-  /// assert_eq!("0⠤\u{fffd}", s.pretty_short(Some(2)));
-  /// assert_eq!("0⠤", s.pretty_short(Some(1)));
+  /// assert_eq!("012\\x01⠤89\\Uff;", s.pretty_short(10));
+  /// assert_eq!("01⠤\\Uff;", s.pretty_short(5));
+  /// assert_eq!("01⠤\\Uff;", s.pretty_short(4));
+  /// assert_eq!("0⠤\\Uff;", s.pretty_short(3));
   /// ```
   fn pretty_short(&self, width: usize) -> String;
 }
@@ -124,12 +124,26 @@ fn coalesced(output: &[Output]) -> String {
     }
     result.push_str(&item.contents);
   }
+
+  if invalid {
+    result.push(';')
+  }
   result
+}
+
+#[cfg(test)]
+macro_rules! d {
+  ( $( $tt:tt )+ ) => { if tests::dbg() { eprintln!( $( $tt )+ ) } }
+}
+
+#[cfg(not(test))]
+macro_rules! d {
+  ( $( $tt:tt )+ ) => {};
 }
 
 pub fn pretty(input: &[u8], width: usize) -> String {
   let width = match width {
-    1..=6 => 6,
+    1..=3 => 3, // shorter than three chars not useful
     _ => width,
   };
 
@@ -150,7 +164,7 @@ pub fn pretty(input: &[u8], width: usize) -> String {
   }
   let mut pretty = coalesced(&output);
 
-  // eprint!("w{width} {width2} cc{char_count} i{part1_len} {}", input.len());
+  d!("w{width} {width2} cc{char_count} i{part1_len} {}", input.len());
 
   if shortened {
     // Estimate where the second part will start. It's tricky because we don't
@@ -173,7 +187,7 @@ pub fn pretty(input: &[u8], width: usize) -> String {
     let output = OutputIterator(&input[start2..]).collect::<Vec<_>>();
     let output_count = output.len();
     let width2 = width2 + (width % 2) - 1;
-    // eprint!(" s{start2} w{width2} o{output_count}");
+    d!("s{start2} w{width2} o{output_count}");
 
     // Now reverse and count the chars
     let mut char_count = 0;
@@ -184,14 +198,16 @@ pub fn pretty(input: &[u8], width: usize) -> String {
       .take_while(|&item| {
         char_count += item.char_count();
         part2_len += item.input_len;
+        d!("  item {item:?} cc{char_count} i{part2_len}");
         char_count <= width2
       })
-      .count();
+      .count()
+      .max(1);
 
     let start2 = output_count - shortened_count;
     let consumed = part1_len + part2_len >= input.len();
     let start2 = if consumed { 0 } else { start2 };
-    // eprint!(" s{shortened_count} i{part2_len} s{start2}");
+    d!("s{shortened_count} cc{char_count} i{part2_len} s{start2}");
 
     // If all bytes both from part1 and part2 are consumed omit gap indicator
     if !consumed {
@@ -201,14 +217,25 @@ pub fn pretty(input: &[u8], width: usize) -> String {
     pretty.push_str(&coalesced(&output[start2..]))
   }
 
-  // eprintln!();
+  eprintln!();
 
   pretty
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
   use super::*;
+  use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
+
+  pub static DBG: AtomicBool = AtomicBool::new(false);
+
+  pub fn set_dbg(dbg: bool) {
+    DBG.store(dbg, Relaxed)
+  }
+
+  pub fn dbg() -> bool {
+    DBG.load(Relaxed)
+  }
 
   #[test]
   fn utf8_pretty() {
@@ -220,16 +247,19 @@ mod tests {
     assert_eq!(b"not utf8\xf0\x80-".pretty(), r"not utf8\Uf080;-");
     assert_eq!(b"abcd\x00ef\xfegh".pretty(), r"abcd\0ef\Ufe;gh");
 
-    let s = ["abcdefghijklmn", "öde Scheiße 💩 été à Li 李"];
-    let t = ["abc⠤mn", "öde⠤ 李"];
+    let s = ["abcdefghijklmn", "Höflichkeit 💩 été à Li 李"];
+    let t = ["a⠤n", "H⠤李"];
     let b = s.iter().map(|s| s.as_bytes()).collect::<Vec<_>>();
     for i in 0..s.len() {
       assert_eq!(b[i].pretty_short(0), s[i], "string {i} iteration 0");
-      for j in 1..7 {
+      for j in 1..4 {
         assert_eq!(b[i].pretty_short(j), t[i], "string {i} iteration {j}");
       }
     }
 
+    assert_eq!(b[0].pretty_short(4), "ab⠤n");
+    assert_eq!(b[0].pretty_short(5), "ab⠤mn");
+    assert_eq!(b[0].pretty_short(6), "abc⠤mn");
     assert_eq!(b[0].pretty_short(7), "abc⠤lmn");
     assert_eq!(b[0].pretty_short(8), "abcd⠤lmn");
     assert_eq!(b[0].pretty_short(9), "abcd⠤klmn");
@@ -238,27 +268,28 @@ mod tests {
     assert_eq!(b[0].pretty_short(12), "abcdef⠤jklmn");
     assert_eq!(b[0].pretty_short(13), "abcdef⠤ijklmn");
     assert_eq!(b[0].pretty_short(14), "abcdefghijklmn");
-    assert_eq!(b[1].pretty_short(10), "öde S⠤Li 李");
-    assert_eq!(b[1].pretty_short(11), "öde S⠤ Li 李");
-    assert_eq!(b[1].pretty_short(12), "öde Sc⠤ Li 李");
-    assert_eq!(b[1].pretty_short(13), "öde Sc⠤à Li 李");
-    assert_eq!(b[1].pretty_short(14), "öde Sch⠤à Li 李");
-    assert_eq!(b[1].pretty_short(15), "öde Sch⠤ à Li 李");
-    assert_eq!(b[1].pretty_short(16), "öde Sche⠤ à Li 李");
-    assert_eq!(b[1].pretty_short(17), "öde Sche⠤é à Li 李");
-    assert_eq!(b[1].pretty_short(18), "öde Schei⠤é à Li 李");
-    assert_eq!(b[1].pretty_short(19), "öde Schei⠤té à Li 李");
-    assert_eq!(b[1].pretty_short(20), "öde Scheiß⠤té à Li 李");
-    assert_eq!(b[1].pretty_short(21), "öde Scheiß⠤été à Li 李");
-    assert_eq!(b[1].pretty_short(22), "öde Scheiße⠤été à Li 李");
-    assert_eq!(b[1].pretty_short(23), "öde Scheiße⠤ été à Li 李");
-    assert_eq!(b[1].pretty_short(24), "öde Scheiße 💩 été à Li 李");
-    assert_eq!(b[1].pretty_short(25), "öde Scheiße 💩 été à Li 李");
+    assert_eq!(b[1].pretty_short(10), "Höfli⠤Li 李");
+    assert_eq!(b[1].pretty_short(11), "Höfli⠤ Li 李");
+    assert_eq!(b[1].pretty_short(12), "Höflic⠤ Li 李");
+    assert_eq!(b[1].pretty_short(13), "Höflic⠤à Li 李");
+    assert_eq!(b[1].pretty_short(14), "Höflich⠤à Li 李");
+    assert_eq!(b[1].pretty_short(15), "Höflich⠤ à Li 李");
+    assert_eq!(b[1].pretty_short(16), "Höflichk⠤ à Li 李");
+    assert_eq!(b[1].pretty_short(17), "Höflichk⠤é à Li 李");
+    assert_eq!(b[1].pretty_short(18), "Höflichke⠤é à Li 李");
+    assert_eq!(b[1].pretty_short(19), "Höflichke⠤té à Li 李");
+    assert_eq!(b[1].pretty_short(20), "Höflichkei⠤té à Li 李");
+    assert_eq!(b[1].pretty_short(21), "Höflichkei⠤été à Li 李");
+    assert_eq!(b[1].pretty_short(22), "Höflichkeit⠤été à Li 李");
+    assert_eq!(b[1].pretty_short(23), "Höflichkeit⠤ été à Li 李");
+    assert_eq!(b[1].pretty_short(24), "Höflichkeit 💩 été à Li 李");
+    assert_eq!(b[1].pretty_short(25), "Höflichkeit 💩 été à Li 李");
   }
 
   #[test]
   fn a_test() {
-    eprintln!("{}", "öde Scheiße 💩 été à Li 李".as_bytes().pretty_short(24));
+    set_dbg(true);
+    eprintln!("{}", "abcdefghijklmn".as_bytes().pretty_short(5));
   }
 
   #[test]

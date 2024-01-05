@@ -6,7 +6,7 @@ use crate::{Atom, List, Map};
 ///
 /// ```
 /// # use axp::Item;
-/// let atom = Item::atom(b"atom");
+/// let atom = Item::new_atom(b"atom");
 /// assert_eq!(format!("{atom}"), "atom");
 /// ```
 #[allow(dead_code)]
@@ -33,12 +33,12 @@ impl fmt::Display for Item {
   ///
   /// ```
   /// # use axp::{Item, Atom, List, Map};
-  /// let list = Item::list(&[Item::atom(b"a"), Item::list(&[])]);
+  /// let list = Item::new_list([Item::new_atom(b"a"), Item::new_list([])]);
   /// let map = [
-  ///   (Atom::new(b"key"), Item::atom(b"item")),
-  ///   (Atom::new(b"list"), list.clone()),
+  ///   (Item::new_atom(b"key"), Item::new_atom(b"item")),
+  ///   (Item::new_atom(b"list"), list.clone()),
   /// ];
-  /// let map = Item::map(map.iter().cloned());
+  /// let map = Item::new_map(map);
   ///
   /// assert_eq!(format!("{list}"), "(a ())");
   /// assert_eq!(format!("{map}"), "(key: item list: (a ()))");
@@ -71,11 +71,11 @@ impl Item {
     Item::Atom(Atom::new(atom))
   }
 
-  pub fn new_list<'a, I: IntoIterator<Item = &'a Item>>(iter: I) -> Self {
+  pub fn new_list<I: IntoIterator<Item = Item>>(iter: I) -> Self {
     Item::List(List::new(iter))
   }
 
-  pub fn new_map<'a, I: IntoIterator<Item = &'a [&'a Item]>>(iter: I) -> Self {
+  pub fn new_map<I: IntoIterator<Item = (Item, Item)>>(iter: I) -> Self {
     Item::Map(Map::new(iter))
   }
 

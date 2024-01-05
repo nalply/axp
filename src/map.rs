@@ -3,7 +3,7 @@ use std::fmt;
 use crate::Item;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Map(pub(crate) Vec<[Item; 2]>);
+pub struct Map(pub(crate) Vec<(Item, Item)>);
 
 impl fmt::Display for Map {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -12,17 +12,17 @@ impl fmt::Display for Map {
 }
 
 impl Map {
-  pub fn new<'a, I: IntoIterator<Item = &'a [&'a Item]>>(iter: I) -> Self {
-    Map(iter.into_iter().map(|kv| [kv[0].clone(), kv[1].clone()]).collect())
+  pub fn new<I: IntoIterator<Item = (Item, Item)>>(iter: I) -> Self {
+    Map(iter.into_iter().collect())
   }
 
   pub fn push(&mut self, key: Item, value: Item) -> &mut Self {
-    self.0.push([key, value]);
+    self.0.push((key, value));
     self
   }
 
   pub fn format(&self, width: usize) -> String {
-    let entries = self.0.iter().map(|e| format_entry(&e[0], &e[1], width));
+    let entries = self.0.iter().map(|e| format_entry(&e.0, &e.1, width));
     let entries = entries.collect::<Vec<String>>().join(" ");
 
     format!("({entries})")

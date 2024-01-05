@@ -1,15 +1,16 @@
 #![forbid(unsafe_code)]
 
 mod atom;
+mod evaluate;
 mod item;
 mod lex;
 mod list;
 mod map;
 mod parse;
 mod pretty;
-mod primitive;
 
 pub use atom::Atom;
+pub use evaluate::evaluate;
 pub use item::Item;
 pub use lex::{lex, AxpLexer, Token};
 pub use list::List;

@@ -204,21 +204,21 @@ mod tests {
   #[test]
   fn test_parse() {
     assert_eq!(parse(b""), Ok(Item::nil()));
-    assert_eq!(parse(b"a"), Ok(Item::new_list([&Item::new_atom(b"a")])));
+    assert_eq!(parse(b"a"), Ok(Item::new_list([Item::new_atom(b"a")])));
     assert_eq!(
       parse(b" x y "),
-      Ok(Item::new_list([&Item::new_atom(b"x"), &Item::new_atom(b"y")]))
+      Ok(Item::new_list([Item::new_atom(b"x"), Item::new_atom(b"y")]))
     );
     assert_eq!(
       parse(b" x () "),
-      Ok(Item::new_list([&Item::new_atom(b"x"), &Item::new_list([])]))
+      Ok(Item::new_list([Item::new_atom(b"x"), Item::new_list([])]))
     );
     assert_eq!(
       parse(" Schönen ( Tag ) ! ".as_bytes()),
       Ok(Item::new_list([
-        &Item::new_atom("Schönen".as_bytes()),
-        &Item::new_list([&Item::new_atom(b"Tag")]),
-        &Item::new_atom(b"!"),
+        Item::new_atom("Schönen".as_bytes()),
+        Item::new_list([Item::new_atom(b"Tag")]),
+        Item::new_atom(b"!"),
       ]))
     );
   }
