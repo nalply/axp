@@ -58,7 +58,7 @@ impl<'b> Iterator for OutputIterator<'b> {
 
   fn next(&mut self) -> Option<Self::Item> {
     fn ascii_x_esc(c: char) -> bool {
-      c.is_ascii_control() && c != '\n'
+      c.is_ascii_control()
     }
 
     fn x_esc(c: char) -> bool {
@@ -77,6 +77,10 @@ impl<'b> Iterator for OutputIterator<'b> {
 
       let contents = match c {
         '\\' => r"\\".to_owned(),
+        '\r' => r"\r".to_owned(),
+        '\n' => r"\n".to_owned(),
+        '\t' => r"\t".to_owned(),
+        '\0' => r"\0".to_owned(),
         c if ascii_x_esc(c) => format!("\\x{:02x}", c as u32),
         c if x_esc(c) => format!("\\X{:x};", c as u32),
         c => c.to_string(),
@@ -123,7 +127,7 @@ fn coalesced(output: &[Output]) -> String {
   result
 }
 
-fn pretty(input: &[u8], width: usize) -> String {
+pub fn pretty(input: &[u8], width: usize) -> String {
   let width = match width {
     1..=6 => 6,
     _ => width,
@@ -210,11 +214,11 @@ mod tests {
   fn utf8_pretty() {
     assert_eq!(b"a".pretty(), "a");
     assert_eq!("ä".as_bytes().pretty(), "ä");
-    assert_eq!(b" \n".pretty(), " \n");
-    assert_eq!(b"\0\x01\x07\x13\\\x1f".pretty(), r"\x00\x01\x07\x13\\\x1f");
-    assert_eq!(b"ASCII text\tand tab".pretty(), r"ASCII text\x09and tab");
+    assert_eq!(b" \n".pretty(), " \\n");
+    assert_eq!(b"\0\x01\x07\x13\\\x1f".pretty(), r"\0\x01\x07\x13\\\x1f");
+    assert_eq!(b"ASCII text\tand tab".pretty(), r"ASCII text\tand tab");
     assert_eq!(b"not utf8\xf0\x80-".pretty(), r"not utf8\Uf080;-");
-    assert_eq!(b"abcd\x00ef\xfegh".pretty(), r"abcd\x00ef\Ufe;gh");
+    assert_eq!(b"abcd\x00ef\xfegh".pretty(), r"abcd\0ef\Ufe;gh");
 
     let s = ["abcdefghijklmn", "öde Scheiße 💩 été à Li 李"];
     let t = ["abc⠤mn", "öde⠤ 李"];
@@ -301,3 +305,5 @@ mod tests {
     }
   }
 }
+
+// Copyright see AUTHORS & LICENSE; SPDX-License-Identifier: ISC+
